@@ -1,0 +1,69 @@
+Gizmo {
+ inputs 2
+ tile_color 0x000000ff
+ note_font "Arial Bold"
+ note_font_size 11
+ note_font_color 0xf9f024ff
+ label "       <img src=\"Corridor_Icon.png\" width=\"30\" height=\"30\">"
+ help "CorridorKey Integration for Nuke"
+ addUserKnob {20 mainTab l "Main"}
+ addUserKnob {22 processButton l "Process" T "print('Processing ML...')" +STARTLINE}
+ addUserKnob {2 workingDirectory l "Working Directory"}
+ workingDirectory "\[file dirname \[value root.name]]/CorridorKey/\[value name]"
+ addUserKnob {3 frameStart l "Frame Range" t "Start Frame"}
+ addUserKnob {3 frameEnd l "" -STARTLINE t "End Frame"}
+ addUserKnob {26 statusText l Status T "Ready"}
+
+ addUserKnob {20 outputsTab l Outputs}
+ addUserKnob {6 enableMatteOutput l "Enable Matte Output" +STARTLINE}
+ addUserKnob {6 enableFGColorOutput l "Enable FG Color Output" +STARTLINE}
+
+ addUserKnob {20 settingsTab l "CorridorKey Settings"}
+ addUserKnob {4 gammaSpace l "Gamma Space" M {Linear sRGB ""}}
+ addUserKnob {26 "" l " " T " "}
+ addUserKnob {7 despillStrength l "Despill Strength" R 0 10}
+ addUserKnob {6 autoDespeckle l "Auto-Despeckle" +STARTLINE}
+ addUserKnob {7 despeckleSize l "Despeckle Size" -STARTLINE R 0 100}
+ addUserKnob {7 refinerStrength l "Refiner Strength" R 0 5}
+ refinerStrength 1
+
+ addUserKnob {20 pathsTab l "Paths & Install"}
+  addUserKnob {22 installButton l "Install CorridorKey" T "import nuke\nimport os\nimport sys\nimport subprocess\nimport threading\nimport urllib.request\nimport ssl\n\ndef run_installation():\n    node = nuke.thisNode()\n    \n    def log(msg):\n        def update_ui():\n            try:\n                current = node['installLog'].value()\n                if current is None:\n                    current = \"\"\n                node['installLog'].setValue(current + str(msg) + \"\\n\")\n            except:\n                pass\n        nuke.executeInMainThread(update_ui)\n        print(msg)\n\n    try:\n        def clear_log():\n            try:\n                node['installLog'].setValue(\"\")\n            except:\n                pass\n        nuke.executeInMainThread(clear_log)\n        \n        home_dir = os.path.expanduser(\"~\")\n        install_dir = os.path.join(home_dir, \".nuke\", \"gizmos\", \"CorridorKey\")\n        \n        log(\"Installing CorridorKey to: \" + install_dir)\n        \n        python_exe = sys.executable\n        if \"Nuke\" in python_exe or \"nuke\" in python_exe.lower():\n            if sys.platform == \"win32\":\n                python_exe = os.path.join(os.path.dirname(sys.executable), \"python.exe\")\n            elif sys.platform == \"darwin\":\n                python_exe = os.path.join(os.path.dirname(os.path.dirname(sys.executable)), \"Frameworks\", \"Python.framework\", \"Versions\", \"Current\", \"bin\", \"python3\")\n                if not os.path.exists(python_exe):\n                    python_exe = \"python3\"\n            else:\n                python_exe = os.path.join(os.path.dirname(sys.executable), \"python3\")\n        if not os.path.exists(python_exe):\n            python_exe = \"python3\"\n        \n        if not os.path.exists(install_dir):\n            log(\"Cloning repository...\")\n            result = subprocess.run([\"git\", \"clone\", \"https://github.com/nikopueringer/CorridorKey.git\", install_dir], capture_output=True, text=True)\n            if result.returncode != 0:\n                log(\"Git clone failed:\\n\" + str(result.stderr))\n                return\n            log(\"Clone successful.\")\n        else:\n            log(\"Repository already exists. Updating...\")\n            result = subprocess.run([\"git\", \"-C\", install_dir, \"pull\"], capture_output=True, text=True)\n            if result.returncode != 0:\n                log(\"Git pull failed:\\n\" + str(result.stderr))\n            else:\n                log(\"Update successful.\")\n        \n        venv_dir = os.path.join(install_dir, \"venv\")\n        if not os.path.exists(venv_dir):\n            log(f\"Creating virtual environment using {python_exe}...\")\n            result = subprocess.run([python_exe, \"-m\", \"venv\", venv_dir], capture_output=True, text=True)\n            if result.returncode != 0:\n                log(\"Venv creation failed:\\n\" + str(result.stderr))\n                return\n            log(\"Venv created.\")\n        \n        log(\"Installing dependencies...\")\n        if sys.platform == \"win32\":\n            pip_exe = os.path.join(venv_dir, \"Scripts\", \"pip.exe\")\n        else:\n            pip_exe = os.path.join(venv_dir, \"bin\", \"pip\")\n            \n        req_file = os.path.join(install_dir, \"requirements.txt\")\n        if os.path.exists(req_file):\n            result = subprocess.run([pip_exe, \"install\", \"-r\", req_file], capture_output=True, text=True)\n            if result.returncode != 0:\n                log(\"Pip install failed:\\n\" + str(result.stderr))\n            else:\n                log(\"Dependencies installed.\")\n        else:\n            log(\"requirements.txt not found! Skipping dependencies.\")\n            \n        checkpoints_dir = os.path.join(install_dir, \"checkpoints\")\n        os.makedirs(checkpoints_dir, exist_ok=True)\n        model_path = os.path.join(checkpoints_dir, \"CorridorKey_v1.0.pth\")\n        \n        if not os.path.exists(model_path):\n            log(\"Downloading CorridorKey_v1.0.pth model...\")\n            model_url = \"https://huggingface.co/nikopueringer/CorridorKey_v1.0/resolve/main/CorridorKey_v1.0.pth\"\n            # Bypass macOS SSL certificate errors in embedded Python\n            ctx = ssl.create_default_context()\n            ctx.check_hostname = False\n            ctx.verify_mode = ssl.CERT_NONE\n            with urllib.request.urlopen(model_url, context=ctx) as response, open(model_path, 'wb') as out_file:\n                out_file.write(response.read())\n            log(\"Download complete.\")\n        else:\n            log(\"Model already exists.\")\n        \n        def finish():\n            log(\"CorridorKey Installation Complete!\")\n            if node:\n                node['installPath'].setValue(install_dir.replace('\\\\', '/'))\n            \n        nuke.executeInMainThread(finish)\n        \n    except Exception as e:\n        log(\"Error during installation: \" + str(e))\n\nnuke.message(\"Starting CorridorKey Installation.\\nCheck the 'Install Log' for progress details.\")\nthreading.Thread(target=run_installation).start()\n" +STARTLINE}
+ addUserKnob {43 installLog l "Install Log"}
+ addUserKnob {26 "" l " " T " "}
+ addUserKnob {2 installPath l "CorridorKey Install Path"}
+ addUserKnob {2 customPythonPath l "Custom Python Path"}
+ addUserKnob {2 customScriptPath l "Custom Script Path"}
+}
+ Input {
+  inputs 0
+  name Plate
+  xpos -200
+  ypos -100
+ }
+ Output {
+  name RGBA
+  xpos -200
+  ypos 100
+ }
+ Input {
+  inputs 0
+  name AlphaHint
+  xpos 0
+  ypos -100
+  number 1
+ }
+set Nalpha [stack 0]
+ Output {
+  name Matte
+  xpos 0
+  ypos 100
+ }
+push $Nalpha
+ Output {
+  name FG_Color
+  xpos 150
+  ypos 100
+ }
+ onCreate "import os\nimport nuke\nhome_dir = os.path.expanduser(\"~\")\ninstall_dir = os.path.join(home_dir, \".nuke\", \"gizmos\", \"CorridorKey\")\nif os.path.exists(install_dir):\n    try:\n        nuke.thisNode()['installPath'].setValue(install_dir.replace('\\\\', '/'))\n    except:\n        pass\n"
+end_group
