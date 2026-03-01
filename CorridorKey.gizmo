@@ -7,7 +7,8 @@ Gizmo {
  label "       <img src=\"Corridor_Icon.png\" width=\"30\" height=\"30\">"
  help "CorridorKey Integration for Nuke"
  addUserKnob {20 mainTab l "Main"}
- addUserKnob {22 processButton l "Process" T "print('Processing ML...')" +STARTLINE}
+ addUserKnob {22 processCurrentFrameButton l "Process Single Frame" T "print('Processing Single Frame...')" +STARTLINE}
+ addUserKnob {22 processFrameRangeButton l "Process Frame Range" T "print('Processing Frame Range...')" +STARTLINE}
  addUserKnob {2 workingDirectory l "Working Directory"}
  workingDirectory "\[file dirname \[value root.name]]/CorridorKey/\[value name]"
  addUserKnob {3 frameStart l "Frame Range" t "Start Frame"}
@@ -35,6 +36,7 @@ Gizmo {
  addUserKnob {2 customPythonPath l "Custom Python Path"}
  addUserKnob {2 customScriptPath l "Custom Script Path"}
  onCreate "import os\nimport nuke\ninstall_dir = os.path.expanduser(\"~/.nuke/CorridorKeyNuke\")\nif os.path.exists(install_dir):\n    try:\n        nuke.thisNode().knob('installPath').setValue(install_dir.replace('\\\\', '/'))\n    except:\n        pass\n"
+ knobChanged "import nuke\nnode = nuke.thisNode()\nk = nuke.thisKnob()\nif k.name() in ('inputChange', 'showPanel'):\n    try:\n        p = node.input(0)\n        if p:\n            node.knob('frameStart').setValue(int(p.firstFrame()))\n            node.knob('frameEnd').setValue(int(p.lastFrame()))\n        else:\n            node.knob('frameStart').setValue(int(nuke.root().firstFrame()))\n            node.knob('frameEnd').setValue(int(nuke.root().lastFrame()))\n    except:\n        pass\n"
 }
  Input {
   inputs 0
