@@ -42,14 +42,14 @@ def run_corridorkey_single_frame():
         
         # --- Plate Export ---
         plate_in = nuke.toNode("Plate")
-        write_plate = nuke.nodes.Write(
-            file=os.path.join(plate_dir, "input.%05d.exr").replace('\\', '/'),
-            file_type="exr",
-            channels="rgb" # Strip alpha from plate export
-        )
-        write_plate['datatype'].setValue("16 bit half")
-        write_plate['compression'].setValue("Zip (1 scanline)")
+        write_plate = nuke.nodes.Write(channels="rgb")
         write_plate.setInput(0, plate_in)
+        write_plate.knob('file').fromUserText(os.path.join(plate_dir, "input.%05d.exr").replace('\\', '/'))
+        try:
+            write_plate.knob('datatype').setValue("16 bit half")
+            write_plate.knob('compression').setValue("Zip (1 scanline)")
+        except:
+            pass
         
         # --- AlphaHint Export ---
         alpha_in = nuke.toNode("AlphaHint")
@@ -73,14 +73,14 @@ def run_corridorkey_single_frame():
             (0, 'rgba.alpha', 'rgba.alpha')
         ])
         
-        write_alpha = nuke.nodes.Write(
-            file=os.path.join(alpha_dir, "alpha.%05d.exr").replace('\\', '/'),
-            file_type="exr",
-            channels="rgb" # Extracting RGB (which is now purely the alpha channel)
-        )
-        write_alpha['datatype'].setValue("16 bit half")
-        write_alpha['compression'].setValue("Zip (1 scanline)")
+        write_alpha = nuke.nodes.Write(channels="rgb")
         write_alpha.setInput(0, shuffle)
+        write_alpha.knob('file').fromUserText(os.path.join(alpha_dir, "alpha.%05d.exr").replace('\\', '/'))
+        try:
+            write_alpha.knob('datatype').setValue("16 bit half")
+            write_alpha.knob('compression').setValue("Zip (1 scanline)")
+        except:
+            pass
         
         # Execute Writes
         nuke.execute([write_plate, write_alpha], current_frame, current_frame)
