@@ -45,3 +45,4 @@ gvm_core/weights/*
 
 # Agent Reference Docs
 agent_docs/
+.agents
