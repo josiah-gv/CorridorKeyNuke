@@ -44,4 +44,4 @@ gvm_core/weights/*
 !gvm_core/weights/.gitkeep
 
 # Agent Reference Docs
-_agent_docs/
+agent_docs/
