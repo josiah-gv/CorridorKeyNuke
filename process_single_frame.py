@@ -45,10 +45,10 @@ def run_corridorkey_single_frame():
         write_plate = nuke.nodes.Write(
             file=os.path.join(plate_dir, "input.%05d.exr").replace('\\', '/'),
             file_type="exr",
-            compression="Zip (1 scanline)",
-            datatype="16 bit half",
             channels="rgb" # Strip alpha from plate export
         )
+        write_plate['datatype'].setValue("16 bit half")
+        write_plate['compression'].setValue("Zip (1 scanline)")
         write_plate.setInput(0, plate_in)
         
         # --- AlphaHint Export ---
@@ -76,10 +76,10 @@ def run_corridorkey_single_frame():
         write_alpha = nuke.nodes.Write(
             file=os.path.join(alpha_dir, "alpha.%05d.exr").replace('\\', '/'),
             file_type="exr",
-            compression="Zip (1 scanline)",
-            datatype="16 bit half",
             channels="rgb" # Extracting RGB (which is now purely the alpha channel)
         )
+        write_alpha['datatype'].setValue("16 bit half")
+        write_alpha['compression'].setValue("Zip (1 scanline)")
         write_alpha.setInput(0, shuffle)
         
         # Execute Writes
