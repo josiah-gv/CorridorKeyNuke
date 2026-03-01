@@ -43,7 +43,7 @@ Gizmo {
  Input {
   inputs 0
   name Plate
-  xpos -200
+  xpos 0
   ypos -100
  }
  Output {
@@ -54,7 +54,7 @@ Gizmo {
  Input {
   inputs 0
   name AlphaHint
-  xpos 0
+  xpos -200
   ypos -100
   number 1
  }
