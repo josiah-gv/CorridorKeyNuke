@@ -1,6 +1,6 @@
 import os
 
-gizmo_path = '/Users/josiahvaughan/.nuke/CorridorKeyNuke/CorridorKey.gizmo'
+gizmo_path = '/Users/josiahvaughan/.nuke/CorridorKeyNuke/GizmoFiles/CorridorKey.gizmo'
 
 process_current_frame_python = """import nuke
 import os
@@ -99,9 +99,7 @@ threading.Thread(target=run_update).start()
 setup_env_python = """import nuke
 import os
 import sys
-import subprocess
 import threading
-import shutil
 
 def run_env_setup():
     node = nuke.thisNode()
@@ -123,93 +121,24 @@ def run_env_setup():
         nuke.executeInMainThread(clear_log)
         
         install_dir = os.path.expanduser("~/.nuke/CorridorKeyNuke")
-        if not os.path.exists(install_dir):
-            log("Error: Repository not found at " + install_dir + "\\nPlease run 'Update from GitHub' first.")
+        gizmo_files_dir = os.path.join(install_dir, "GizmoFiles")
+        
+        if not os.path.exists(gizmo_files_dir):
+            log("Error: Repository not found at " + install_dir + "\\nPlease click 'Update from GitHub' first.")
             return
-            
-        venv_dir = os.path.join(install_dir, "venv")
         
-        # 1. Find Base Python
-        base_python = shutil.which("python3") or shutil.which("python")
-        if not base_python:
-            log("Error: Could not find Python 3 installed on your system.\\nPlease install Python 3.10+.")
+        if gizmo_files_dir not in sys.path:
+            sys.path.insert(0, gizmo_files_dir)
+        
+        import importlib
+        try:
+            import nuke_installer
+            importlib.reload(nuke_installer)
+        except ImportError:
+            log("Error: nuke_installer.py not found in " + gizmo_files_dir + "\\nPlease click 'Update from GitHub' to download the latest files.")
             return
-            
-        log("Using base python: " + base_python)
         
-        # 2. Create Venv
-        if not os.path.exists(venv_dir):
-            log("Creating virtual environment (this may take a minute)...")
-            res = subprocess.run([base_python, "-m", "venv", venv_dir], capture_output=True, text=True)
-            if res.returncode != 0:
-                log("Venv creation failed:\\n" + res.stderr)
-                return
-            log("Virtual environment created successfully.")
-        else:
-            log("Virtual environment already exists.")
-            
-        # 3. Determine Venv Python path
-        if sys.platform == "win32":
-            venv_py = os.path.join(venv_dir, "Scripts", "python.exe")
-        else:
-            venv_py = os.path.join(venv_dir, "bin", "python")
-            
-        if not os.path.exists(venv_py):
-            log("Error: Virtual environment python executable not found at " + venv_py)
-            return
-            
-        # 4. Install Requirements
-        req_file = os.path.join(install_dir, "requirements.txt")
-        if not os.path.exists(req_file):
-            log("Error: requirements.txt not found in repository.")
-            return
-            
-        log("Upgrading pip...")
-        subprocess.run([venv_py, "-m", "pip", "install", "--upgrade", "pip"], capture_output=True)
-            
-        log("Installing dependencies from requirements.txt... (This will take a while)")
-        
-        # Run pip install
-        # We use Popen to stream output to the log
-        process = subprocess.Popen(
-            [venv_py, "-m", "pip", "install", "-r", req_file],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            universal_newlines=True
-        )
-        
-        for line in process.stdout:
-            log(line.strip())
-            
-        process.wait()
-        
-        if process.returncode != 0:
-            log("\\nDependency installation failed with code " + str(process.returncode))
-            return
-            
-        # 5. Download Model Weights
-        import urllib.request
-        import ssl
-        ssl._create_default_https_context = ssl._create_unverified_context
-        ckpt_dir = os.path.join(install_dir, "CorridorKeyModule", "checkpoints")
-        os.makedirs(ckpt_dir, exist_ok=True)
-        ckpt_file = os.path.join(ckpt_dir, "CorridorKey.pth")
-        
-        if not os.path.exists(ckpt_file):
-            log("\\nDownloading CorridorKey inference weights (~300MB)...\\nThis may take a minute and Nuke may appear frozen. Please wait.")
-            url = "https://huggingface.co/nikopueringer/CorridorKey_v1.0/resolve/main/CorridorKey_v1.0.pth"
-            try:
-                urllib.request.urlretrieve(url, ckpt_file)
-                log("Weights downloaded successfully.")
-            except Exception as dl_err:
-                log("Failed to download weights: " + str(dl_err))
-                return
-        else:
-            log("\\nInference weights already exist.")
-            
-        log("\\nEnvironment Setup Complete! ML features are now ready to use.")
+        nuke_installer.run_install(node, install_dir, log)
         
     except Exception as e:
         log("Setup Error: " + str(e))

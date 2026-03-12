@@ -31,5 +31,5 @@ def process_file(filepath):
     with open(filepath, 'w') as f:
         f.write(content)
 
-process_file('/Users/josiahvaughan/.nuke/CorridorKeyNuke/CorridorKey.gizmo')
+process_file('/Users/josiahvaughan/.nuke/CorridorKeyNuke/GizmoFiles/CorridorKey.gizmo')
 print("Done")
