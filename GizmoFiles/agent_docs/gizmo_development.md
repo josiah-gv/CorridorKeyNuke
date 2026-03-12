@@ -2,8 +2,6 @@
 
 This document outlines the step-by-step development process for creating the CorridorKey Nuke Gizmo. It is designed to be clean, simple, and easy for other agents to follow. To ensure stability, **the agent MUST pause execution at the end of each step and wait for the user to manually verify the software in the Nuke GUI** before moving on to the next step.
 
-> **⚠️ AUTO-DEPLOY INSTRUCTION FOR AGENTS:**
-> Whenever the agent modifies the `CorridorKey.gizmo` file, it MUST automatically copy the updated file to the user's `~/.nuke/gizmos/` directory so the user does not have to manually move the file for testing.
 
 *Reference Materials:*
 - **`docs/gizmo_plan.md`**: The central strategy for features, installation, and cross-platform Nuke versioning.
