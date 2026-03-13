@@ -18,7 +18,12 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# BASE_DIR = repo root (parent of GizmoFiles/ where this script lives)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Ensure the repo root is on sys.path so CorridorKeyModule can be imported
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 def get_corridor_key_engine(device='cuda'):
     try:
@@ -68,12 +73,30 @@ def main():
     for d in [fg_dir, matte_dir, proc_dir, comp_dir]:
         os.makedirs(d, exist_ok=True)
         
+    # EXR output: half-float, ZIP compression (lossless, universally reliable)
     exr_flags = [
         cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF,
-        cv2.IMWRITE_EXR_COMPRESSION, cv2.IMWRITE_EXR_COMPRESSION_PXR24,
+        cv2.IMWRITE_EXR_COMPRESSION, cv2.IMWRITE_EXR_COMPRESSION_ZIP,
     ]
+
+    # sRGB to Linear conversion (inverse sRGB OETF)
+    def srgb_to_linear(img):
+        """Convert sRGB float image to linear float."""
+        linear = np.where(
+            img <= 0.04045,
+            img / 12.92,
+            np.power((img + 0.055) / 1.055, 2.4)
+        )
+        return linear.astype(np.float32)
         
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # Device detection: CUDA > MPS (Apple Silicon) > CPU
+    if torch.cuda.is_available():
+        device = 'cuda'
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = 'mps'
+    else:
+        device = 'cpu'
+    logger.info(f"Using device: {device}")
     engine = get_corridor_key_engine(device=device)
     
     input_is_linear = (args.gamma.lower() == 'linear')
@@ -96,7 +119,8 @@ def main():
         p_file = plate_files[i]
         a_file = alpha_files[i]
         
-        input_stem = os.path.basename(p_file).split('.')[0]
+        # Use splitext to preserve frame number: "input.00130.exr" → "input.00130"
+        input_stem = os.path.splitext(os.path.basename(p_file))[0]
         logger.info(f"Processing: {os.path.basename(p_file)}")
         
         # 2. Read Plate
@@ -160,20 +184,26 @@ def main():
             traceback.print_exc()
             continue
             
-        pred_fg = res['fg'] # sRGB
+        pred_fg = res['fg'] # sRGB — must convert to linear for EXR
         pred_alpha = res['alpha'] # Linear
         
-        # 5. Save Outputs
-        fg_bgr = cv2.cvtColor(pred_fg, cv2.COLOR_RGB2BGR)
+        # 5. Save Outputs (all EXR, all linear)
+        # FG: sRGB → linear → BGR → EXR
+        fg_linear = srgb_to_linear(np.clip(pred_fg, 0.0, 1.0))
+        fg_bgr = cv2.cvtColor(fg_linear, cv2.COLOR_RGB2BGR)
         cv2.imwrite(os.path.join(fg_dir, f"{input_stem}.exr"), fg_bgr, exr_flags)
         
+        # Matte: already linear
         if pred_alpha.ndim == 3: pred_alpha = pred_alpha[:, :, 0]
         cv2.imwrite(os.path.join(matte_dir, f"{input_stem}.exr"), pred_alpha, exr_flags)
         
+        # Comp: sRGB → linear → BGR → EXR
         comp_srgb = res['comp']
-        comp_bgr = cv2.cvtColor((np.clip(comp_srgb, 0.0, 1.0) * 255.0).astype(np.uint8), cv2.COLOR_RGB2BGR)
-        cv2.imwrite(os.path.join(comp_dir, f"{input_stem}.png"), comp_bgr)
+        comp_linear = srgb_to_linear(np.clip(comp_srgb, 0.0, 1.0))
+        comp_bgr = cv2.cvtColor(comp_linear, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(os.path.join(comp_dir, f"{input_stem}.exr"), comp_bgr, exr_flags)
 
+        # Processed: already linear premultiplied RGBA from engine
         if 'processed' in res:
             proc_rgba = res['processed']
             proc_bgra = cv2.cvtColor(proc_rgba, cv2.COLOR_RGBA2BGRA)

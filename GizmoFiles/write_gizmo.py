@@ -13,8 +13,9 @@ def run_single_frame_hook():
     if not install_path:
         install_path = os.path.expanduser("~/.nuke/CorridorKeyNuke")
         
-    if install_path not in sys.path:
-        sys.path.append(install_path)
+    gizmo_files_dir = os.path.join(install_path, "GizmoFiles")
+    if gizmo_files_dir not in sys.path:
+        sys.path.insert(0, gizmo_files_dir)
         
     try:
         import process_single_frame
@@ -158,10 +159,16 @@ if os.path.exists(install_dir):
         pass
 """
 
+# --- Output routing logic ---
+# This is called from knobChanged whenever mainOutputSelect or secondaryOutputSelect changes.
+# Output type indices: 0=Original, 1=Processed RGBA, 2=FG Only, 3=Matte Only, 4=Preview Comp
+# Internal node names: Plate (input), Read_Processed, Read_FG, Read_Matte, Read_Comp
+
 knob_changed_python = """import nuke
 node = nuke.thisNode()
 k = nuke.thisKnob()
 
+# --- Auto-fill frame range from input ---
 if k.name() in ('inputChange', 'showPanel'):
     try:
         p = node.input(0)
@@ -173,6 +180,42 @@ if k.name() in ('inputChange', 'showPanel'):
             node.knob('frameEnd').setValue(int(nuke.root().lastFrame()))
     except:
         pass
+
+# --- Output routing ---
+# Map dropdown index to internal Read node name
+# 0=Original (Plate input), 1=Processed RGBA, 2=FG Only, 3=Matte Only, 4=Preview Comp
+OUTPUT_NODE_MAP = {
+    0: "Plate",
+    1: "Read_Processed",
+    2: "Read_FG",
+    3: "Read_Matte",
+    4: "Read_Comp",
+}
+
+def wire_output(output_node_name, type_index):
+    try:
+        node.begin()
+        out_node = nuke.toNode(output_node_name)
+        if out_node is None:
+            node.end()
+            return
+        source_name = OUTPUT_NODE_MAP.get(int(type_index), "Plate")
+        source_node = nuke.toNode(source_name)
+        if source_node:
+            out_node.setInput(0, source_node)
+        else:
+            # Source not created yet (no process run yet), disconnect
+            out_node.setInput(0, nuke.toNode("Plate"))
+        node.end()
+    except:
+        try: node.end()
+        except: pass
+
+if k.name() == 'mainOutputSelect':
+    wire_output("Output1", node.knob('mainOutputSelect').getValue())
+
+if k.name() == 'secondaryOutputSelect':
+    wire_output("Output2", node.knob('secondaryOutputSelect').getValue())
 """
 
 gizmo_template = f"""Gizmo {{
@@ -194,9 +237,12 @@ gizmo_template = f"""Gizmo {{
  addUserKnob {{3 frameEnd l "" -STARTLINE t "End Frame"}}
  addUserKnob {{26 statusText l Status T "Ready"}}
 
+
  addUserKnob {{20 outputsTab l Outputs}}
- addUserKnob {{6 enableMatteOutput l "Enable Matte Output" +STARTLINE}}
- addUserKnob {{6 enableFGColorOutput l "Enable FG Color Output" +STARTLINE}}
+ addUserKnob {{4 mainOutputSelect l "Primary Output" M {{Original "Processed RGBA" "FG Only" "Matte Only" "Preview Comp" ""}}}}
+ addUserKnob {{26 divider_outputs l "" +STARTLINE T " "}}
+ addUserKnob {{4 secondaryOutputSelect l "Secondary Output" M {{Original "Processed RGBA" "FG Only" "Matte Only" "Preview Comp" ""}}}}
+ secondaryOutputSelect "Matte Only"
 
  addUserKnob {{20 settingsTab l "CorridorKey Settings"}}
  addUserKnob {{4 gammaSpace l "Gamma Space" M {{Linear sRGB ""}}}}
@@ -233,9 +279,9 @@ gizmo_template = f"""Gizmo {{
   ypos -100
  }}
  Output {{
-  name RGBA
-  xpos -200
-  ypos 100
+  name Output1
+  xpos 0
+  ypos 200
  }}
  Input {{
   inputs 0
@@ -244,17 +290,10 @@ gizmo_template = f"""Gizmo {{
   ypos -100
   number 1
  }}
-set Nalpha [stack 0]
  Output {{
-  name Matte
-  xpos 0
-  ypos 100
- }}
-push $Nalpha
- Output {{
-  name FG_Color
-  xpos 150
-  ypos 100
+  name Output2
+  xpos -200
+  ypos 200
  }}
  end_group
 """
