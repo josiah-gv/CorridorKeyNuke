@@ -32,6 +32,36 @@ def run_single_frame_hook():
 run_single_frame_hook()
 """
 
+process_frame_range_python = """import nuke
+import os
+import sys
+import threading
+
+def run_frame_range_hook():
+    node = nuke.thisNode()
+    install_path = node.knob('installPath').value()
+    if not install_path:
+        install_path = os.path.expanduser("~/.nuke/CorridorKeyNuke")
+        
+    gizmo_files_dir = os.path.join(install_path, "GizmoFiles")
+    if gizmo_files_dir not in sys.path:
+        sys.path.insert(0, gizmo_files_dir)
+        
+    try:
+        import process_frame_range
+        import importlib
+        importlib.reload(process_frame_range)
+        threading.Thread(target=process_frame_range.run_corridorkey_frame_range).start()
+    except Exception as e:
+        def show_err():
+            print("Failed to load script: " + str(e))
+            try: node.knob('statusText').setValue("Error: " + str(e))
+            except: pass
+        nuke.executeInMainThread(show_err)
+
+run_frame_range_hook()
+"""
+
 update_button_python = """import nuke
 import os
 import subprocess
@@ -230,7 +260,9 @@ gizmo_template = f"""Gizmo {{
  addUserKnob {{22 processCurrentFrameButton l "Process Single Frame" T {{
 {process_current_frame_python}
  }}}}
- addUserKnob {{22 processFrameRangeButton l "Process Frame Range" T "print('Processing Frame Range...')" +STARTLINE}}
+ addUserKnob {{22 processFrameRangeButton l "Process Frame Range" T {{
+{process_frame_range_python}
+ }}}} +STARTLINE}}
  addUserKnob {{2 workingDirectory l "Working Directory"}}
  workingDirectory "\\[file dirname \\[value root.name]]/CorridorKey/\\[value name]"
  addUserKnob {{3 frameStart l "Frame Range" t "Start Frame"}}
