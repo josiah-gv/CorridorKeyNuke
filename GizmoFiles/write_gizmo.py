@@ -248,6 +248,33 @@ if k.name() in ('inputChange', 'showPanel'):
 # --- Output routing is now handled by internal Switch nodes linked via expressions ---
 """
 
+def get_create_read_script(pass_name, ext, offset):
+    return f"""import nuke
+import os
+node = nuke.thisNode()
+work_dir = node.knob('workingDirectory').evaluate()
+if not work_dir:
+    nuke.message('Please set a Working Directory first.')
+else:
+    path = os.path.join(work_dir, "outputs", "{pass_name}", "input.%05d.{ext}").replace('\\\\\\\\', '/')
+    with nuke.root():
+        rn = nuke.nodes.Read()
+        rn['file'].setValue(path)
+        try:
+            rn['first'].setValue(int(node.knob('frameStart').value()))
+            rn['last'].setValue(int(node.knob('frameEnd').value()))
+            rn['origfirst'].setValue(int(node.knob('frameStart').value()))
+            rn['origlast'].setValue(int(node.knob('frameEnd').value()))
+        except:
+            pass
+        rn.setXYpos(node.xpos() + {offset}, node.ypos() + 100)
+"""
+
+create_read_proc = get_create_read_script("Processed", "exr", -150)
+create_read_fg = get_create_read_script("FG", "exr", -50)
+create_read_matte = get_create_read_script("Matte", "exr", 50)
+create_read_comp = get_create_read_script("Comp", "exr", 150)
+
 gizmo_template = f"""Gizmo {{
  inputs 2
  tile_color 0x000000ff
@@ -274,10 +301,21 @@ gizmo_template = f"""Gizmo {{
 
 
  addUserKnob {{20 outputsTab l Outputs}}
- addUserKnob {{4 mainOutputSelect l "Primary Output" M {{Original "Processed RGBA" "FG Only" "Matte Only" "Preview Comp" ""}}}}
- addUserKnob {{26 divider_outputs l "" +STARTLINE T " "}}
- addUserKnob {{4 secondaryOutputSelect l "Secondary Output" M {{Original "Processed RGBA" "FG Only" "Matte Only" "Preview Comp" ""}}}}
- secondaryOutputSelect "Matte Only"
+ addUserKnob {{4 mainOutputSelect l "Output Type" M {{Original "Processed" "FG Only" "Matte Only" "Preview Comp" ""}}}}
+ addUserKnob {{26 divider_read l " " T " "}}
+ addUserKnob {{26 readNodeLabel l "<b>Create Read Nodes</b>"}}
+ addUserKnob {{22 createReadProc l "Processed" +STARTLINE T {{
+{create_read_proc}
+ }}}}
+ addUserKnob {{22 createReadFG l "FG Only" +STARTLINE T {{
+{create_read_fg}
+ }}}}
+ addUserKnob {{22 createReadMatte l "Matte Only" +STARTLINE T {{
+{create_read_matte}
+ }}}}
+ addUserKnob {{22 createReadComp l "Preview Comp" +STARTLINE T {{
+{create_read_comp}
+ }}}}
 
  addUserKnob {{20 settingsTab l "CorridorKey Settings"}}
  addUserKnob {{4 gammaSpace l "Gamma Space" M {{Linear sRGB ""}}}}
@@ -378,24 +416,6 @@ gizmo_template = f"""Gizmo {{
  Output {{
   name Output1
   xpos 0
-  ypos 200
- }}
-
- push $NRead_Comp
- push $NRead_Matte
- push $NRead_FG
- push $NRead_Processed
- push $NPlate
- Switch {{
-  inputs 5
-  which {{{{parent.secondaryOutputSelect}}}}
-  name Switch_Output2
-  xpos -200
-  ypos 100
- }}
- Output {{
-  name Output2
-  xpos -200
   ypos 200
  }}
 

@@ -112,10 +112,97 @@ run_cancel()
 
 
  addUserKnob {20 outputsTab l Outputs}
- addUserKnob {4 mainOutputSelect l "Primary Output" M {Original "Processed RGBA" "FG Only" "Matte Only" "Preview Comp" ""}}
- addUserKnob {26 divider_outputs l "" +STARTLINE T " "}
- addUserKnob {4 secondaryOutputSelect l "Secondary Output" M {Original "Processed RGBA" "FG Only" "Matte Only" "Preview Comp" ""}}
- secondaryOutputSelect "Matte Only"
+ addUserKnob {4 mainOutputSelect l "Output Type" M {Original "Processed" "FG Only" "Matte Only" "Preview Comp" ""}}
+ addUserKnob {26 divider_read l " " T " "}
+ addUserKnob {26 readNodeLabel l "<b>Create Read Nodes</b>"}
+ addUserKnob {22 createReadProc l "Processed" +STARTLINE T {
+import nuke
+import os
+node = nuke.thisNode()
+work_dir = node.knob('workingDirectory').evaluate()
+if not work_dir:
+    nuke.message('Please set a Working Directory first.')
+else:
+    path = os.path.join(work_dir, "outputs", "Processed", "input.%05d.exr").replace('\\\\', '/')
+    with nuke.root():
+        rn = nuke.nodes.Read()
+        rn['file'].setValue(path)
+        try:
+            rn['first'].setValue(int(node.knob('frameStart').value()))
+            rn['last'].setValue(int(node.knob('frameEnd').value()))
+            rn['origfirst'].setValue(int(node.knob('frameStart').value()))
+            rn['origlast'].setValue(int(node.knob('frameEnd').value()))
+        except:
+            pass
+        rn.setXYpos(node.xpos() + -150, node.ypos() + 100)
+
+ }}
+ addUserKnob {22 createReadFG l "FG Only" +STARTLINE T {
+import nuke
+import os
+node = nuke.thisNode()
+work_dir = node.knob('workingDirectory').evaluate()
+if not work_dir:
+    nuke.message('Please set a Working Directory first.')
+else:
+    path = os.path.join(work_dir, "outputs", "FG", "input.%05d.exr").replace('\\\\', '/')
+    with nuke.root():
+        rn = nuke.nodes.Read()
+        rn['file'].setValue(path)
+        try:
+            rn['first'].setValue(int(node.knob('frameStart').value()))
+            rn['last'].setValue(int(node.knob('frameEnd').value()))
+            rn['origfirst'].setValue(int(node.knob('frameStart').value()))
+            rn['origlast'].setValue(int(node.knob('frameEnd').value()))
+        except:
+            pass
+        rn.setXYpos(node.xpos() + -50, node.ypos() + 100)
+
+ }}
+ addUserKnob {22 createReadMatte l "Matte Only" +STARTLINE T {
+import nuke
+import os
+node = nuke.thisNode()
+work_dir = node.knob('workingDirectory').evaluate()
+if not work_dir:
+    nuke.message('Please set a Working Directory first.')
+else:
+    path = os.path.join(work_dir, "outputs", "Matte", "input.%05d.exr").replace('\\\\', '/')
+    with nuke.root():
+        rn = nuke.nodes.Read()
+        rn['file'].setValue(path)
+        try:
+            rn['first'].setValue(int(node.knob('frameStart').value()))
+            rn['last'].setValue(int(node.knob('frameEnd').value()))
+            rn['origfirst'].setValue(int(node.knob('frameStart').value()))
+            rn['origlast'].setValue(int(node.knob('frameEnd').value()))
+        except:
+            pass
+        rn.setXYpos(node.xpos() + 50, node.ypos() + 100)
+
+ }}
+ addUserKnob {22 createReadComp l "Preview Comp" +STARTLINE T {
+import nuke
+import os
+node = nuke.thisNode()
+work_dir = node.knob('workingDirectory').evaluate()
+if not work_dir:
+    nuke.message('Please set a Working Directory first.')
+else:
+    path = os.path.join(work_dir, "outputs", "Comp", "input.%05d.exr").replace('\\\\', '/')
+    with nuke.root():
+        rn = nuke.nodes.Read()
+        rn['file'].setValue(path)
+        try:
+            rn['first'].setValue(int(node.knob('frameStart').value()))
+            rn['last'].setValue(int(node.knob('frameEnd').value()))
+            rn['origfirst'].setValue(int(node.knob('frameStart').value()))
+            rn['origlast'].setValue(int(node.knob('frameEnd').value()))
+        except:
+            pass
+        rn.setXYpos(node.xpos() + 150, node.ypos() + 100)
+
+ }}
 
  addUserKnob {20 settingsTab l "CorridorKey Settings"}
  addUserKnob {4 gammaSpace l "Gamma Space" M {Linear sRGB ""}}
@@ -355,24 +442,6 @@ if k.name() in ('inputChange', 'showPanel'):
  Output {
   name Output1
   xpos 0
-  ypos 200
- }
-
- push $NRead_Comp
- push $NRead_Matte
- push $NRead_FG
- push $NRead_Processed
- push $NPlate
- Switch {
-  inputs 5
-  which {{parent.secondaryOutputSelect}}
-  name Switch_Output2
-  xpos -200
-  ypos 100
- }
- Output {
-  name Output2
-  xpos -200
   ypos 200
  }
 
