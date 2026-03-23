@@ -245,41 +245,7 @@ if k.name() in ('inputChange', 'showPanel'):
     except:
         pass
 
-# --- Output routing ---
-# Map dropdown index to internal Read node name
-# 0=Original (Plate input), 1=Processed RGBA, 2=FG Only, 3=Matte Only, 4=Preview Comp
-OUTPUT_NODE_MAP = {
-    0: "Plate",
-    1: "Read_Processed",
-    2: "Read_FG",
-    3: "Read_Matte",
-    4: "Read_Comp",
-}
-
-def wire_output(output_node_name, type_index):
-    try:
-        node.begin()
-        out_node = nuke.toNode(output_node_name)
-        if out_node is None:
-            node.end()
-            return
-        source_name = OUTPUT_NODE_MAP.get(int(type_index), "Plate")
-        source_node = nuke.toNode(source_name)
-        if source_node:
-            out_node.setInput(0, source_node)
-        else:
-            # Source not created yet (no process run yet), disconnect
-            out_node.setInput(0, nuke.toNode("Plate"))
-        node.end()
-    except:
-        try: node.end()
-        except: pass
-
-if k.name() == 'mainOutputSelect':
-    wire_output("Output1", node.knob('mainOutputSelect').getValue())
-
-if k.name() == 'secondaryOutputSelect':
-    wire_output("Output2", node.knob('secondaryOutputSelect').getValue())
+# --- Output routing is now handled by internal Switch nodes linked via expressions ---
 """
 
 gizmo_template = f"""Gizmo {{
@@ -347,22 +313,98 @@ gizmo_template = f"""Gizmo {{
   xpos 0
   ypos -100
  }}
+ set NPlate [stack 0]
+ Read {{
+  inputs 0
+  file "\\[value parent.workingDirectory]/outputs/Processed/input.%05d.exr"
+  first {{{{parent.frameStart}}}}
+  last {{{{parent.frameEnd}}}}
+  origfirst {{{{parent.frameStart}}}}
+  origlast {{{{parent.frameEnd}}}}
+  name Read_Processed
+  xpos 100
+  ypos -100
+ }}
+ set NRead_Processed [stack 0]
+ Read {{
+  inputs 0
+  file "\\[value parent.workingDirectory]/outputs/FG/input.%05d.exr"
+  first {{{{parent.frameStart}}}}
+  last {{{{parent.frameEnd}}}}
+  origfirst {{{{parent.frameStart}}}}
+  origlast {{{{parent.frameEnd}}}}
+  name Read_FG
+  xpos 200
+  ypos -100
+ }}
+ set NRead_FG [stack 0]
+ Read {{
+  inputs 0
+  file "\\[value parent.workingDirectory]/outputs/Matte/input.%05d.exr"
+  first {{{{parent.frameStart}}}}
+  last {{{{parent.frameEnd}}}}
+  origfirst {{{{parent.frameStart}}}}
+  origlast {{{{parent.frameEnd}}}}
+  name Read_Matte
+  xpos 300
+  ypos -100
+ }}
+ set NRead_Matte [stack 0]
+ Read {{
+  inputs 0
+  file "\\[value parent.workingDirectory]/outputs/Comp/input.%05d.exr"
+  first {{{{parent.frameStart}}}}
+  last {{{{parent.frameEnd}}}}
+  origfirst {{{{parent.frameStart}}}}
+  origlast {{{{parent.frameEnd}}}}
+  name Read_Comp
+  xpos 400
+  ypos -100
+ }}
+ set NRead_Comp [stack 0]
+
+ push $NRead_Comp
+ push $NRead_Matte
+ push $NRead_FG
+ push $NRead_Processed
+ push $NPlate
+ Switch {{
+  inputs 5
+  which {{{{parent.mainOutputSelect}}}}
+  name Switch_Output1
+  xpos 0
+  ypos 100
+ }}
  Output {{
   name Output1
   xpos 0
   ypos 200
  }}
+
+ push $NRead_Comp
+ push $NRead_Matte
+ push $NRead_FG
+ push $NRead_Processed
+ push $NPlate
+ Switch {{
+  inputs 5
+  which {{{{parent.secondaryOutputSelect}}}}
+  name Switch_Output2
+  xpos -200
+  ypos 100
+ }}
+ Output {{
+  name Output2
+  xpos -200
+  ypos 200
+ }}
+
  Input {{
   inputs 0
   name AlphaHint
   xpos -200
   ypos -100
   number 1
- }}
- Output {{
-  name Output2
-  xpos -200
-  ypos 200
  }}
  end_group
 """

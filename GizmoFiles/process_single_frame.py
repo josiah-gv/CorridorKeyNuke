@@ -298,74 +298,12 @@ def run_corridorkey_single_frame():
         log("Loading Output...")
 
         def assign_outputs():
-            node.begin()
-
-            # Scan the output directories for actual files written
-            output_passes = {
-                'Processed': os.path.join(outputs_dir, "Processed"),
-                'FG': os.path.join(outputs_dir, "FG"),
-                'Matte': os.path.join(outputs_dir, "Matte"),
-                'Comp': os.path.join(outputs_dir, "Comp"),
-            }
-
-            for pass_name, pass_dir in output_passes.items():
-                if not os.path.isdir(pass_dir):
-                    print("Warning: Output directory missing: " + pass_dir)
-                    continue
-
-                # Find the actual output files (EXR first, then PNG for Comp)
-                out_files = sorted(glob.glob(os.path.join(pass_dir, "*.exr")))
-                if not out_files:
-                    out_files = sorted(glob.glob(os.path.join(pass_dir, "*.png")))
-                if not out_files:
-                    print("Warning: No output files in " + pass_dir)
-                    continue
-
-                file_path = out_files[0].replace('\\', '/')
-
-                read_name = "Read_" + pass_name
-                rn = nuke.toNode(read_name)
-                if rn is None:
-                    rn = nuke.nodes.Read(name=read_name)
-
-                rn['file'].setValue(file_path)
-                rn['first'].setValue(current_frame)
-                rn['last'].setValue(current_frame)
-                rn['origfirst'].setValue(current_frame)
-                rn['origlast'].setValue(current_frame)
-                rn['on_error'].setValue("nearest frame")
-
-            # --- Wire outputs based on dropdown selections ---
-            # Output type map: 0=Original, 1=Processed RGBA, 2=FG Only,
-            #                  3=Matte Only, 4=Preview Comp
-            OUTPUT_NODE_MAP = {
-                0: "Plate",
-                1: "Read_Processed",
-                2: "Read_FG",
-                3: "Read_Matte",
-                4: "Read_Comp",
-            }
-
-            def wire_output(output_name, type_index):
-                out_node = nuke.toNode(output_name)
-                if out_node is None:
-                    return
-                source_name = OUTPUT_NODE_MAP.get(int(type_index), "Plate")
-                source_node = nuke.toNode(source_name)
-                if source_node:
-                    out_node.setInput(0, source_node)
-
-            # Auto-set primary to "Processed RGBA" (index 1) after processing
-            node.knob('mainOutputSelect').setValue(1)
-            primary_type = 1  # Processed RGBA
-            secondary_type = int(node.knob('secondaryOutputSelect').getValue())
-
-            wire_output("Output1", primary_type)
-            wire_output("Output2", secondary_type)
-
-            node.end()
-
-            node.knob('statusText').setValue("Finished Frame " + str(current_frame))
+            try:
+                # Auto-set primary to "Processed RGBA" (index 1) after processing
+                node.knob('mainOutputSelect').setValue(1)
+                node.knob('statusText').setValue("Finished Frame " + str(current_frame))
+            except Exception:
+                pass
 
         nuke.executeInMainThread(assign_outputs)
 
