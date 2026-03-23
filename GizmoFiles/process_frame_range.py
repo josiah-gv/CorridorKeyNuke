@@ -9,6 +9,7 @@ import logging
 import datetime
 import time
 import re
+import process_state
 
 # --- File Logger Setup ---
 _LOG_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +31,8 @@ def _get_file_logger():
 
 def run_corridorkey_frame_range():
     node = nuke.thisNode()
+    node_name = node.fullName()
+    process_state.cancel_flags[node_name] = False
     flog = _get_file_logger()
 
     # Write a session separator
@@ -267,10 +270,19 @@ def run_corridorkey_frame_range():
         flog.info("Command: %s", cmd_str)
         flog.info("CWD: %s", install_path)
 
+        # Terminate any existing process for this node first
+        if process_state.active_processes.get(node_name):
+            flog.warning("Terminating previous active process for this node.")
+            try:
+                process_state.active_processes[node_name].terminate()
+            except Exception:
+                pass
+
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, shell=use_shell, cwd=install_path,
+            text=True, shell=use_shell, cwd=install_path, bufsize=1,
         )
+        process_state.active_processes[node_name] = proc
 
         # Parse stdout line-by-line for per-frame progress
         frames_processed = 0
@@ -278,6 +290,11 @@ def run_corridorkey_frame_range():
         last_sec_per_frame = None
 
         for line in proc.stdout:
+            if process_state.cancel_flags.get(node_name, False):
+                flog.info("Cancellation requested via UI.")
+                proc.terminate()
+                break
+
             line = line.rstrip()
             if not line:
                 continue
@@ -303,6 +320,13 @@ def run_corridorkey_frame_range():
 
         # Wait for process to finish and capture stderr
         _, stderr_output = proc.communicate()
+
+        process_state.active_processes.pop(node_name, None)
+
+        if process_state.cancel_flags.get(node_name, False):
+            log("ML Processing Cancelled by User.")
+            process_state.cancel_flags[node_name] = False
+            return
 
         if stderr_output:
             flog.info("--- subprocess stderr ---\n%s", stderr_output.rstrip())

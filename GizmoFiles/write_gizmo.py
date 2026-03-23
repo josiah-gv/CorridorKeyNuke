@@ -62,6 +62,40 @@ def run_frame_range_hook():
 run_frame_range_hook()
 """
 
+cancel_processing_python = """import nuke
+import os
+import sys
+
+def run_cancel():
+    node = nuke.thisNode()
+    node_name = node.fullName()
+    
+    install_path = node.knob('installPath').value()
+    if not install_path:
+        install_path = os.path.expanduser("~/.nuke/CorridorKeyNuke")
+        
+    gizmo_files_dir = os.path.join(install_path, "GizmoFiles")
+    if gizmo_files_dir not in sys.path:
+        sys.path.insert(0, gizmo_files_dir)
+        
+    try:
+        import process_state
+        process_state.cancel_flags[node_name] = True
+        if process_state.active_processes.get(node_name):
+            try:
+                process_state.active_processes[node_name].terminate()
+            except Exception:
+                pass
+            node.knob('statusText').setValue("Cancelling...")
+        else:
+            node.knob('statusText').setValue("No active process to cancel.")
+            
+    except Exception as e:
+        print("Failed to cancel process: " + str(e))
+
+run_cancel()
+"""
+
 update_button_python = """import nuke
 import os
 import subprocess
@@ -260,9 +294,12 @@ gizmo_template = f"""Gizmo {{
  addUserKnob {{22 processCurrentFrameButton l "Process Single Frame" T {{
 {process_current_frame_python}
  }}}}
- addUserKnob {{22 processFrameRangeButton l "Process Frame Range" T {{
+ addUserKnob {{22 processFrameRangeButton l "Process Frame Range" +STARTLINE T {{
 {process_frame_range_python}
- }}}} +STARTLINE}}
+ }}}}
+ addUserKnob {{22 cancelProcessingButton l "Cancel" -STARTLINE T {{
+{cancel_processing_python}
+ }}}}
  addUserKnob {{2 workingDirectory l "Working Directory"}}
  workingDirectory "\\[file dirname \\[value root.name]]/CorridorKey/\\[value name]"
  addUserKnob {{3 frameStart l "Frame Range" t "Start Frame"}}

@@ -122,6 +122,7 @@ def main():
         # Use splitext to preserve frame number: "input.00130.exr" → "input.00130"
         input_stem = os.path.splitext(os.path.basename(p_file))[0]
         logger.info(f"Processing: {os.path.basename(p_file)}")
+        print(f"Processing: {os.path.basename(p_file)}", flush=True)
         
         # 2. Read Plate
         is_exr = p_file.lower().endswith('.exr')
